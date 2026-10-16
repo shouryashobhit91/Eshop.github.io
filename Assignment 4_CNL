@@ -1,0 +1,109 @@
+Distance Vector Routing Algorithm (Assignment 4)
+Program: dvr.py   (Language: Python 3)
+# CN Lab Assignment 4 : Distance Vector Routing algorithm (simulation)
+#
+# Every router starts knowing only the cost to its direct neighbours.
+# In each round every router receives the distance vectors of its neighbours
+# and updates its own table with the Bellman-Ford equation
+#       D(x, y) = min over neighbours v of { c(x, v) + D(v, y) }
+# The rounds continue until no table changes (convergence).
+#
+# Run: python3 dvr.py
+
+INF = float("inf")
+
+
+def show_matrix(names, cost):
+    print("\nCost matrix (0 = same router, - = no direct link)")
+    print("      " + "".join(f"{n:>6}" for n in names))
+    for i, n in enumerate(names):
+        row = "".join(f"{('-' if c == INF else c):>6}" for c in cost[i])
+        print(f"{n:>6}" + row)
+
+
+def show_tables(names, dist, hop, title):
+    print("\n" + title)
+    for i, n in enumerate(names):
+        print(f"\n  Router {n}")
+        print(f"  {'Destination':<13}{'Cost':<7}{'Next hop'}")
+        for j, d in enumerate(names):
+            c = "inf" if dist[i][j] == INF else dist[i][j]
+            h = "-" if hop[i][j] is None else names[hop[i][j]]
+            print(f"  {d:<13}{c!s:<7}{h}")
+
+
+def distance_vector(cost):
+    n = len(cost)
+    # initial tables: only direct links are known
+    dist = [[cost[i][j] for j in range(n)] for i in range(n)]
+    hop = [[(j if cost[i][j] != INF and i != j else (i if i == j else None)) for j in range(n)] for i in range(n)]
+    neighbours = [[v for v in range(n) if v != i and cost[i][v] != INF] for i in range(n)]
+    initial = ([r[:] for r in dist], [r[:] for r in hop])
+
+    rounds = 0
+    while True:
+        rounds += 1
+        old = [r[:] for r in dist]            # vectors sent by every router in this round
+        changes = 0
+        for x in range(n):
+            for y in range(n):
+                if x == y:
+                    continue
+                for v in neighbours[x]:
+                    new_cost = cost[x][v] + old[v][y]
+                    if new_cost < dist[x][y]:
+                        dist[x][y] = new_cost
+                        hop[x][y] = v
+                        changes += 1
+        print(f"Round {rounds}: {changes} table entries updated")
+        if changes == 0:
+            break
+    return initial, dist, hop, rounds
+
+
+def path(names, hop, src, dst):
+    route = [src]
+    while route[-1] != dst:
+        nxt = hop[route[-1]][dst]
+        if nxt is None or len(route) > len(names):
+            return None
+        route.append(nxt)
+    return " -> ".join(names[r] for r in route)
+
+
+def main():
+    n = int(input("Enter number of routers: "))
+    names = [chr(ord("A") + i) for i in range(n)]
+    print(f"Routers: {' '.join(names)}")
+    print("Enter the cost matrix row by row (use -1 when there is no direct link):")
+    cost = []
+    for i in range(n):
+        row = list(map(int, input(f"Row {names[i]}: ").split()))
+        cost.append([INF if (c < 0 and i != j) else (0 if i == j else c) for j, c in enumerate(row)])
+
+    show_matrix(names, cost)
+    n = len(cost)
+    init_hop = [[(j if cost[i][j] != INF else None) for j in range(n)] for i in range(n)]
+    show_tables(names, cost, init_hop, "=== Initial routing tables (only neighbours known) ===")
+
+    print("\n=== Exchanging distance vectors ===")
+    _, dist, hop, rounds = distance_vector(cost)
+    show_tables(names, dist, hop, f"=== Final routing tables after convergence ({rounds} rounds) ===")
+
+    while True:
+        q = input("\nEnter source and destination (e.g. A E), or q to quit: ").strip().upper()
+        if q == "Q":
+            break
+        try:
+            s, d = (names.index(x) for x in q.split())
+        except ValueError:
+            print("Enter two router names from", " ".join(names))
+            continue
+        if dist[s][d] == INF:
+            print(f"No path from {names[s]} to {names[d]}")
+        else:
+            print(f"Shortest path {names[s]} to {names[d]}: {path(names, hop, s, d)}   Minimum cost = {dist[s][d]}")
+
+
+if __name__ == "__main__":
+    main()
